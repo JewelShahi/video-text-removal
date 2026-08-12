@@ -72,10 +72,15 @@ router.post('/process', async (req, res) => {
     const sessionStore = req.app.get('sessionStore');
     sessionStore.touchSession(filename);
 
+    // ==========================================
+    // THIS IS THE LINE YOU WERE MISSING!
+    // It deletes old processed files before making new ones
+    // ==========================================
+    sessionStore.cleanupProcessedFiles(filename);
+
     const meta = await probeVideo(inputPath);
 
     // FIX: Added -${Date.now()} to force a unique filename every time.
-    // This prevents the browser from showing a cached version of the old video.
     const outFilename = `${path.parse(filename).name}-clean-${Date.now()}.mp4`;
     const outputPath = path.join(PROCESSED_DIR, outFilename);
 
@@ -121,7 +126,7 @@ router.get('/download/:filename', (req, res) => {
   res.download(filePath, filename, (err) => {
     // Remove all files (upload + processed) once download finishes or fails
     const sessionStore = req.app.get('sessionStore');
-    sessionStore.cleanupSession(filename);
+    sessionStore.cleanupSession(filename, 'User downloaded video');
   });
 });
 
@@ -140,7 +145,7 @@ router.post('/heartbeat', (req, res) => {
 router.post('/cleanup', (req, res) => {
   const { filename } = req.body;
   if (filename) {
-    req.app.get('sessionStore').cleanupSession(filename);
+    req.app.get('sessionStore').cleanupSession(filename, 'Tab closed or refreshed by user');
   }
   res.json({ ok: true });
 });
