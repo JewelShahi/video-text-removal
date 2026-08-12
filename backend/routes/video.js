@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1 GB
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('video/')) {
       return cb(new Error('Only video files are allowed'));
@@ -29,10 +29,18 @@ const upload = multer({
   },
 });
 
+/* ── Upload ─────────────────────────────────────────────────────────────── */
+
 router.post('/upload', upload.single('video'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
+
     const meta = await probeVideo(req.file.path);
+
+    // Register this file in a new session
+    const sessionStore = req.app.get('sessionStore');
+    sessionStore.createSession(req.file.filename);
+
     res.json({
       filename: req.file.filename,
       url: `/uploads/${req.file.filename}`,
@@ -48,6 +56,8 @@ router.post('/upload', upload.single('video'), async (req, res) => {
   }
 });
 
+/* ── Process ────────────────────────────────────────────────────────────── */
+
 router.post('/process', async (req, res) => {
   try {
     const { filename, rectangles, mode } = req.body;
@@ -59,16 +69,24 @@ router.post('/process', async (req, res) => {
     const inputPath = path.join(UPLOAD_DIR, filename);
     if (!fs.existsSync(inputPath)) return res.status(404).json({ error: 'Uploaded video not found' });
 
-    // Re-probe to get authoritative source dimensions for the HD-cap decision.
+    const sessionStore = req.app.get('sessionStore');
+    sessionStore.touchSession(filename);
+
     const meta = await probeVideo(inputPath);
 
-    const outFilename = `${path.parse(filename).name}-clean.mp4`;
+    // FIX: Added -${Date.now()} to force a unique filename every time.
+    // This prevents the browser from showing a cached version of the old video.
+    const outFilename = `${path.parse(filename).name}-clean-${Date.now()}.mp4`;
     const outputPath = path.join(PROCESSED_DIR, outFilename);
 
     await processVideo(inputPath, outputPath, rectangles, mode || 'blur', {
       width: meta.width,
       height: meta.height,
+      codec: meta.codec,
     });
+
+    // Track the processed file so it gets cleaned up together
+    sessionStore.addProcessedFile(filename, outFilename);
 
     const outMeta = await probeVideo(outputPath);
 
@@ -83,6 +101,48 @@ router.post('/process', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to process video', details: err.message });
   }
+});
+
+/* ── Download — deletes all files for this session after serving ────────── */
+
+router.get('/download/:filename', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(PROCESSED_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  // Prevent browser cache so a re-download doesn't serve a ghost file
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+
+  res.download(filePath, filename, (err) => {
+    // Remove all files (upload + processed) once download finishes or fails
+    const sessionStore = req.app.get('sessionStore');
+    sessionStore.cleanupSession(filename);
+  });
+});
+
+/* ── Heartbeat — client pings this every ~15 s to stay "active" ─────────── */
+
+router.post('/heartbeat', (req, res) => {
+  const { filename } = req.body;
+  if (filename) {
+    req.app.get('sessionStore').touchSession(filename);
+  }
+  res.json({ ok: true });
+});
+
+/* ── Cleanup — client sends this on beforeunload / tab close ────────────── */
+
+router.post('/cleanup', (req, res) => {
+  const { filename } = req.body;
+  if (filename) {
+    req.app.get('sessionStore').cleanupSession(filename);
+  }
+  res.json({ ok: true });
 });
 
 module.exports = router;

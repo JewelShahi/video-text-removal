@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VideoUploader from './components/VideoUploader.jsx';
 import RectangleEditor from './components/RectangleEditor.jsx';
 import RectangleList from './components/RectangleList.jsx';
@@ -12,6 +12,38 @@ export default function App() {
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  const heartbeatRef = useRef(null);
+
+  // ── Session Heartbeat & Cleanup ────────────────────────────────────────
+  useEffect(() => {
+    if (!meta?.filename) return;
+
+    const filename = meta.filename;
+
+    // Ping every 15s to keep session alive
+    heartbeatRef.current = setInterval(() => {
+      fetch('/api/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+    }, 15000);
+
+    // Auto-cleanup when tab closes or user navigates away
+    const handleBeforeUnload = () => {
+      const blob = new Blob([JSON.stringify({ filename })], { type: 'application/json' });
+      navigator.sendBeacon('/api/cleanup', blob);
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    };
+  }, [meta?.filename]);
 
   const handleSelect = async (file) => {
     setError(null);
@@ -35,7 +67,14 @@ export default function App() {
     setResult(null);
     try {
       const payload = rectangles.map((r) => ({
-        x: r.x, y: r.y, w: r.w, h: r.h, start: r.start, end: r.end,
+        // Convert internal x,y back to top-left x,y for the backend
+        x: r.x,
+        y: r.y,
+        w: r.w,
+        h: r.h,
+        angle: r.angle || 0, // Pass the rotation!
+        start: r.start,
+        end: r.end,
       }));
       const data = await processVideo(meta.filename, payload, mode);
       setResult(data);
@@ -74,7 +113,7 @@ export default function App() {
               <span>
                 Upload a video, draw boxes over any text or logo, and it'll be removed —
                 only those regions are touched, so the rest of the frame stays sharp and
-                undistorted. Output is always normalized to <b>H.265 (HEVC)</b>, capped at{' '}
+                undistorted. Output is normalized to <b>H.264</b>, capped at{' '}
                 <b>1080p HD</b> if the source is larger.
               </span>
             </div>
@@ -125,6 +164,7 @@ export default function App() {
                     onChange={(e) => setMode(e.target.value)}
                   >
                     <option value="blur">Blur — safe for any background</option>
+                    <option value="cover">Cover — stretch edges (best for solid backgrounds)</option>
                     <option value="delogo">Delogo — interpolate (static backgrounds)</option>
                   </select>
                 </div>
@@ -140,7 +180,7 @@ export default function App() {
                     : `Remove text (${rectangles.length} region${rectangles.length !== 1 ? 's' : ''})`}
                 </button>
                 <p className="text-xs text-base-content/50 mt-2">
-                  Output: H.265, {meta.width > 1920 || meta.height > 1080 ? 'downscaled to' : 'kept at'} HD or below.
+                  Output: H.264, {meta.width > 1920 || meta.height > 1080 ? 'downscaled to' : 'kept at'} HD or below.
                 </p>
               </div>
             </div>
@@ -161,9 +201,9 @@ export default function App() {
                 <div className="badge badge-outline">{result.codec}</div>
                 <div className="badge badge-outline">{result.width}×{result.height}</div>
               </h3>
-              <video src={result.url} controls className="rounded-lg w-full max-h-[520px]" />
+              <video src={`${result.url}?v=${Date.now()}`} controls className="rounded-lg w-full max-h-[520px]" />
               <div className="card-actions justify-end mt-2">
-                <a href={result.url} download className="btn btn-success btn-sm">
+                <a href={`/api/download/${result.filename}`} className="btn btn-success btn-sm">
                   Download video
                 </a>
               </div>
