@@ -4,6 +4,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import Home from './pages/Home.jsx';
 import Editor from './pages/Editor.jsx';
+import ScrollToTop from './components/ScrollToTop.jsx';
 
 export default function App() {
   return (
@@ -23,7 +24,7 @@ export default function App() {
             <Route path="/studio" element={<Editor />} />
           </Routes>
         </div>
-
+        <ScrollToTop />
         <Footer />
       </div>
     </BrowserRouter>
