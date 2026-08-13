@@ -186,23 +186,6 @@ function buildFilterComplex(rectangles, mode, dims) {
     return { filterComplex: null, videoFilter: chain, outLabel: null };
   }
 
-  /* ── cover mode ────────────────────────────────────────────────────── */
-  if (mode === 'cover') {
-    let chain = rects
-      .map((r) => {
-        const enable = buildEnableExpr(r);
-        const enablePart = enable ? `:enable='${enable}'` : '';
-        return `cover=x=${r.x}:y=${r.y}:w=${r.w}:h=${r.h}:mode=cover${enablePart}`;
-      })
-      .join(',');
-    if (scaleTarget) chain += `,scale=${scaleTarget.w}:${scaleTarget.h}`;
-    
-    console.log('\n🔧 [FILTER] Cover filter chain:');
-    console.log('   └─', chain);
-    
-    return { filterComplex: null, videoFilter: chain, outLabel: null };
-  }
-
   /* ── blur mode ─────────────────────────────────────────────────────── */
   const BLUR_PADDING = 100;
   const videoW = dims.width || 1920;
