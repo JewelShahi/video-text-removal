@@ -72,15 +72,12 @@ router.post('/process', async (req, res) => {
     const sessionStore = req.app.get('sessionStore');
     sessionStore.touchSession(filename);
 
-    // ==========================================
-    // THIS IS THE LINE YOU WERE MISSING!
     // It deletes old processed files before making new ones
-    // ==========================================
     sessionStore.cleanupProcessedFiles(filename);
 
     const meta = await probeVideo(inputPath);
 
-    // FIX: Added -${Date.now()} to force a unique filename every time.
+    // Added Date.now() to force a unique filename every time
     const outFilename = `${path.parse(filename).name}-clean-${Date.now()}.mp4`;
     const outputPath = path.join(PROCESSED_DIR, outFilename);
 
@@ -124,13 +121,13 @@ router.get('/download/:filename', (req, res) => {
   res.set('Expires', '0');
 
   res.download(filePath, filename, (err) => {
-    // Remove all files (upload + processed) once download finishes or fails
+    // Remove all files once download finishes or fails
     const sessionStore = req.app.get('sessionStore');
     sessionStore.cleanupSession(filename, 'User downloaded video');
   });
 });
 
-/* ── Heartbeat — client pings this every ~15 s to stay "active" ─────────── */
+/* ── Heartbeat — client pings this every 15s to stay "active" ─────────── */
 
 router.post('/heartbeat', (req, res) => {
   const { filename } = req.body;
