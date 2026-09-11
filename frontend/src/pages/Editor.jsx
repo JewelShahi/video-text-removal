@@ -23,7 +23,7 @@ export default function Editor() {
     document.title = 'Studio — Vanish';
   }, []);
 
-  // ── Session Heartbeat & Cleanup (unchanged) ─────────────────────────────
+  // ── Session heartbeat and cleanup ─────────────────────────────
   useEffect(() => {
     if (!meta?.filename) return;
     const filename = meta.filename;
