@@ -14,7 +14,7 @@ const PROCESSED_DIR = path.join(__dirname, 'processed');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-/* ─── Session & File Cleanup ───────────────────────────────────────────── */
+/* ─── Session and file cleanup ───────────────────────────────────────────── */
 
 const sessions = new Map();
 
@@ -119,7 +119,7 @@ app.set('sessionStore', {
   cleanupProcessedFiles,
 });
 
-/* ─── Middleware & Routes ──────────────────────────────────────────────── */
+/* ─── Middleware and routes ──────────────────────────────────────────────── */
 
 app.use(cors());
 app.use(express.json());
