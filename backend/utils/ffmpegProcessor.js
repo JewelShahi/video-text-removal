@@ -29,7 +29,7 @@ function needsConversion(dims) {
 
 function probeVideo(filePath) {
   return new Promise((resolve, reject) => {
-    console.log('\n🔍 [PROBE] Probing video file:', filePath);
+    console.log('\n[PROBE] Probing video file:', filePath);
     
     const args = [
       '-v', 'error',
@@ -50,12 +50,12 @@ function probeVideo(filePath) {
     ffprobe.on('error', reject);
     ffprobe.on('close', (code) => {
       if (code !== 0) {
-        console.error('❌ [PROBE] ffprobe failed with code:', code);
+        console.error('[PROBE ERROR] ffprobe failed with code:', code);
         return reject(new Error(err || `ffprobe exited with code ${code}`));
       }
       try {
         const data = JSON.parse(out);
-        console.log('🔍 [PROBE] Raw ffprobe output:', JSON.stringify(data, null, 2));
+        console.log('[PROBE] Raw ffprobe output:', JSON.stringify(data, null, 2));
         
         const stream = data.streams && data.streams[0];
         const duration = parseFloat(
@@ -75,17 +75,17 @@ function probeVideo(filePath) {
           codec: stream ? stream.codec_name : null,
         };
         
-        console.log('\n📊 [PROBE] Parsed video info:');
+        console.log('\n[PROBE STATTS] Parsed video info:');
         console.log('   ├─ Resolution:', `${result.width}x${result.height}`);
         console.log('   ├─ Duration:', `${result.duration}s (${formatDuration(result.duration)})`);
         console.log('   ├─ FPS:', result.fps);
         console.log('   ├─ Codec:', result.codec);
-        console.log('   ├─ Is H264:', isH264(result.codec) ? '✅ Yes' : '❌ No');
-        console.log('   └─ Is HD (≤1920x1080):', isHD(result.width, result.height) ? '✅ Yes' : '❌ No');
+        console.log('   ├─ Is H264:', isH264(result.codec) ? 'Yes' : 'No');
+        console.log('   └─ Is HD (≤1920x1080):', isHD(result.width, result.height) ? 'Yes' : 'No');
         
         resolve(result);
       } catch (e) {
-        console.error('❌ [PROBE] Failed to parse ffprobe output:', e.message);
+        console.error('[PROBE ERROR] Failed to parse ffprobe output:', e.message);
         reject(e);
       }
     });
@@ -139,7 +139,7 @@ function computeScaleTarget(width, height) {
   const newShort = evenRound(shortSide);
   const result = isPortrait ? { w: newShort, h: newLong } : { w: newLong, h: newShort };
   
-  console.log('📐 [SCALE] Computed scale target:');
+  console.log('[SCALE INFO] Computed scale target:');
   console.log('   ├─ Original:', `${width}x${height}`);
   console.log('   ├─ Orientation:', isPortrait ? 'Portrait' : 'Landscape');
   console.log('   ├─ Scale factor:', (factor * 100).toFixed(2) + '%');
@@ -151,7 +151,7 @@ function computeScaleTarget(width, height) {
 /* ── Filter builder ─────────────────────────────────────────────────────── */
 
 function buildFilterComplex(rectangles, mode, dims) {
-  console.log('\n🎬 [FILTER] Building filter complex:');
+  console.log('\n[FILTER INFO] Building filter complex:');
   console.log('   ├─ Mode:', mode);
   console.log('   ├─ Video dims:', `${dims.width}x${dims.height}`);
   console.log('   └─ Rectangles count:', rectangles.length);
@@ -159,7 +159,7 @@ function buildFilterComplex(rectangles, mode, dims) {
   const rects = rectangles.map(clampRect);
   
   // Log clamped rectangles
-  console.log('\n📦 [FILTER] Clamped rectangles:');
+  console.log('\n[FILTER] Clamped rectangles:');
   rects.forEach((r, i) => {
     console.log(`   ├─ Rect ${i + 1}:`, `{ x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}, angle: ${r.angle}°, start: ${r.start}, end: ${r.end} }`);
   });
@@ -168,9 +168,9 @@ function buildFilterComplex(rectangles, mode, dims) {
   const scaleTarget = shouldScale ? computeScaleTarget(dims.width, dims.height) : null;
   
   if (shouldScale && scaleTarget) {
-    console.log('📐 [FILTER] Scaling will be applied:', `${scaleTarget.w}x${scaleTarget.h}`);
+    console.log('[FILTER] Scaling will be applied:', `${scaleTarget.w}x${scaleTarget.h}`);
   } else {
-    console.log('📐 [FILTER] No scaling needed (already HD or smaller)');
+    console.log('[FILTER] No scaling needed (already HD or smaller)');
   }
 
   /* ── delogo mode ───────────────────────────────────────────────────── */
@@ -180,7 +180,7 @@ function buildFilterComplex(rectangles, mode, dims) {
       .join(',');
     if (scaleTarget) chain += `,scale=${scaleTarget.w}:${scaleTarget.h}`;
     
-    console.log('\n🔧 [FILTER] Delogo filter chain:');
+    console.log('\n[FILTER] Delogo filter chain:');
     console.log('   └─', chain);
     
     return { filterComplex: null, videoFilter: chain, outLabel: null };
@@ -191,7 +191,7 @@ function buildFilterComplex(rectangles, mode, dims) {
   const videoW = dims.width || 1920;
   const videoH = dims.height || 1080;
   
-  console.log('\n🔧 [FILTER] Blur mode - building complex filter graph...');
+  console.log('\n[FILTER] Blur mode - building complex filter graph...');
 
   function safeBoxBlur(cropW, cropH) {
     const minSide = Math.min(cropW, cropH);
@@ -211,7 +211,7 @@ function buildFilterComplex(rectangles, mode, dims) {
     const enablePart = enable ? `:enable='${enable}'` : '';
     const outLabel = i === rects.length - 1 ? 'vout' : `v${i}`;
     
-    console.log(`\n   ▶ Processing rect ${i + 1}/${rects.length} (angle: ${angle}°)`);
+    console.log(`\n   > Processing rect ${i + 1}/${rects.length} (angle: ${angle}°)`);
 
     if (Math.abs(angle) < 0.5) {
       console.log('     └─ Using axis-aligned blur');
@@ -291,9 +291,9 @@ function buildFilterComplex(rectangles, mode, dims) {
 
   const filterComplexStr = lines.join(';');
   
-  console.log('\n📝 [FILTER] Generated filter_complex:');
+  console.log('\n[FILTER INFO] Generated filter_complex:');
   console.log('   └─', filterComplexStr);
-  console.log('\n🏷️  [FILTER] Output label:', finalLabel);
+  console.log('\n[FILTER OUTPUT] Output label:', finalLabel);
   
   return { filterComplex: filterComplexStr, videoFilter: null, outLabel: finalLabel };
 }
@@ -302,19 +302,19 @@ function buildFilterComplex(rectangles, mode, dims) {
 
 async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
   console.log('\n' + '═'.repeat(60));
-  console.log('🚀 [PROCESS] Starting video processing');
+  console.log('[PROCESS] Starting video processing');
   console.log('═'.repeat(60));
-  console.log('📁 [PROCESS] Input:', inputPath);
-  console.log('📁 [PROCESS] Output:', outputPath);
-  console.log('🔧 [PROCESS] Mode:', mode);
+  console.log('[PROCESS INPUT] Input:', inputPath);
+  console.log('[PROCESS OUTPUT] Output:', outputPath);
+  console.log('[PROCESS MODE] Mode:', mode);
   
   const { filterComplex, videoFilter, outLabel } = buildFilterComplex(rectangles, mode, dims);
   const convert = needsConversion(dims);
   
-  console.log('\n🔄 [PROCESS] Conversion analysis:');
-  console.log('   ├─ Needs codec conversion:', !isH264(dims.codec) ? '✅ Yes' : '❌ No', `(${dims.codec} → h264)`);
-  console.log('   ├─ Needs resolution scaling:', !isHD(dims.width, dims.height) ? '✅ Yes' : '❌ No');
-  console.log('   └─ Full conversion needed:', convert ? '✅ Yes' : '❌ No');
+  console.log('\n[PROCESS] Conversion analysis:');
+  console.log('   ├─ Needs codec conversion:', !isH264(dims.codec) ? 'Yes' : 'No', `(${dims.codec} → h264)`);
+  console.log('   ├─ Needs resolution scaling:', !isHD(dims.width, dims.height) ? 'Yes' : 'No');
+  console.log('   └─ Full conversion needed:', convert ? 'Yes' : 'No');
 
   let args = ['-y', '-i', inputPath];
 
@@ -329,7 +329,7 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
   }
 
   if (convert) {
-    console.log('\n⚙️  [PROCESS] Using RE-ENCODE settings (full conversion):');
+    console.log('\n[PROCESS] Using RE-ENCODE settings (full conversion):');
     console.log('   ├─ Video codec: libx264');
     console.log('   ├─ Preset: medium');
     console.log('   ├─ CRF: 23');
@@ -349,7 +349,7 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
       outputPath,
     ]);
   } else {
-    console.log('\n⚙️  [PROCESS] Using FAST-PASS settings (stream copy where possible):');
+    console.log('\n[PROCESS] Using FAST-PASS settings (stream copy where possible):');
     console.log('   ├─ Video codec: libx264');
     console.log('   ├─ Preset: fast');
     console.log('   ├─ CRF: 18');
@@ -368,12 +368,12 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
     ]);
   }
 
-  console.log('\n📋 [PROCESS] Full ffmpeg command:');
+  console.log('\n[PROCESS] Full ffmpeg command:');
   console.log('   └─', ffmpegPath, args.join(' '));
 
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
-    console.log('\n⏳ [PROCESS] Starting ffmpeg...');
+    console.log('\n[PROCESS STARTED] Starting ffmpeg...');
     
     const ffmpeg = spawn(ffmpegPath, args);
     let stderr = '';
@@ -387,12 +387,12 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
       const speedMatch = msg.match(/speed=\s*([\d.]+)x/);
       if (timeMatch && speedMatch) {
         const elapsed = (Date.now() - startTime) / 1000;
-        process.stdout.write(`\r   ⏱️  Progress: ${timeMatch[1]} | Speed: ${speedMatch[1]}x | Elapsed: ${elapsed.toFixed(1)}s`);
+        process.stdout.write(`\rProgress: ${timeMatch[1]} | Speed: ${speedMatch[1]}x | Elapsed: ${elapsed.toFixed(1)}s`);
       }
     });
     
     ffmpeg.on('error', (err) => {
-      console.error('\n❌ [PROCESS] ffmpeg spawn error:', err.message);
+      console.error('\nPROCESS ERROR] ffmpeg spawn error:', err.message);
       reject(err);
     });
     
@@ -401,19 +401,19 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
       console.log('\n');
       
       if (code === 0) {
-        console.log('✅ [PROCESS] ffmpeg completed successfully!');
+        console.log('[PROCESS COMPLETED] ffmpeg completed successfully!');
         console.log(`   └─ Processing time: ${elapsed}s`);
         
         // Probe the output video to get new info
         console.log('\n' + '─'.repeat(60));
-        console.log('📊 [RESULT] Probing output video...');
+        console.log('[RESULT] Probing output video...');
         console.log('─'.repeat(60));
         
         try {
           const newDims = await probeVideo(outputPath);
           
           console.log('\n' + '═'.repeat(60));
-          console.log('📊 [COMPARISON] Before vs After');
+          console.log('[COMPARISON STATS] Before vs After');
           console.log('═'.repeat(60));
           console.log('                    │ BEFORE              │ AFTER');
           console.log('   ─────────────────┼─────────────────────┼─────────────────────');
@@ -424,20 +424,20 @@ async function processVideo(inputPath, outputPath, rectangles, mode, dims) {
           console.log(`   Is H264          │ ${String(isH264(dims.codec) ? 'Yes' : 'No').padEnd(19)} │ ${isH264(newDims.codec) ? 'Yes' : 'No'}`);
           console.log(`   Is HD            │ ${String(isHD(dims.width, dims.height) ? 'Yes' : 'No').padEnd(19)} │ ${isHD(newDims.width, newDims.height) ? 'Yes' : 'No'}`);
           console.log('═'.repeat(60));
-          console.log(`📁 [RESULT] Output file: ${outputPath}`);
-          console.log(`⏱️  [RESULT] Total processing time: ${elapsed}s`);
+          console.log(`[RESULT OUTPUT] Output file: ${outputPath}`);
+          console.log(`[RESULT PROCESSING TIME] Total processing time: ${elapsed}s`);
           console.log('═'.repeat(60) + '\n');
           
           resolve({ outputPath, newDims, processingTime: elapsed });
         } catch (probeErr) {
-          console.warn('⚠️  [RESULT] Could not probe output video:', probeErr.message);
-          console.log(`📁 [RESULT] Output file: ${outputPath}`);
-          console.log(`⏱️  [RESULT] Processing time: ${elapsed}s\n`);
+          console.warn('[RESULT WARNING] Could not probe output video:', probeErr.message);
+          console.log(`[RESULT OUTPUT] Output file: ${outputPath}`);
+          console.log(`[RESULT PROCESSING TIME] Processing time: ${elapsed}s\n`);
           resolve({ outputPath, newDims: null, processingTime: elapsed });
         }
       } else {
-        console.error('❌ [PROCESS] ffmpeg failed with code:', code);
-        console.error('❌ [PROCESS] Last 2000 chars of stderr:');
+        console.error('[PROCESS ERROR] ffmpeg failed with code:', code);
+        console.error('[PROCESS ERROR] Last 2000 chars of stderr:');
         console.error(stderr.slice(-2000));
         reject(new Error(`ffmpeg exited with code ${code}\n${stderr.slice(-2000)}`));
       }
@@ -455,13 +455,13 @@ async function processAndLog(inputPath, outputPath, rectangles, mode = 'blur') {
   console.log('█'.repeat(60));
   
   try {
-    // Step 1: Probe original video
-    console.log('\n📋 [STEP 1/3] Analyzing source video...');
+    // Step 1 - Probe original video
+    console.log('\n[STEP 1/3] Analyzing source video...');
     const dims = await probeVideo(inputPath);
     
-    // Step 2: Build filters and show what will be done
-    console.log('\n📋 [STEP 2/3] Planning transformations...');
-    console.log('\n🎯 [PLAN] Operations to be performed:');
+    // Step 2 - Build filters and show what will be done
+    console.log('\nSTEP 2/3] Planning transformations...');
+    console.log('\n[PLAN] Operations to be performed:');
     console.log(`   ├─ Text removal mode: ${mode}`);
     console.log(`   ├─ Number of regions: ${rectangles.length}`);
     
@@ -477,27 +477,27 @@ async function processAndLog(inputPath, outputPath, rectangles, mode = 'blur') {
     }
     
     if (!isH264(dims.codec)) {
-      console.log(`   ├─ 🔄 Codec conversion: ${dims.codec} → h264`);
+      console.log(`   ├─ Codec conversion: ${dims.codec} → h264`);
     }
     
     if (!isHD(dims.width, dims.height)) {
       const target = computeScaleTarget(dims.width, dims.height);
       if (target) {
-        console.log(`   ├─ 📐 Resolution scaling: ${dims.width}x${dims.height} → ${target.w}x${target.h}`);
+        console.log(`   ├─ Resolution scaling: ${dims.width}x${dims.height} → ${target.w}x${target.h}`);
       }
     }
     
-    console.log('   └─ ✨ Ready to process!');
+    console.log('   └─ Ready to process!');
     
-    // Step 3: Process the video
-    console.log('\n📋 [STEP 3/3] Processing video...');
+    // Step 3 - Process the video
+    console.log('\n[STEP 3/3] Processing video...');
     const result = await processVideo(inputPath, outputPath, rectangles, mode, dims);
     
     return result;
     
   } catch (error) {
     console.error('\n' + '═'.repeat(60));
-    console.error('❌ [FATAL] Processing failed:');
+    console.error('[FATAL ERROR] Processing failed:');
     console.error('═'.repeat(60));
     console.error('   └─ Error:', error.message);
     console.error('═'.repeat(60) + '\n');
@@ -511,22 +511,5 @@ module.exports = {
   buildFilterComplex, 
   computeScaleTarget, 
   needsConversion,
-  processAndLog  // Export the main wrapper
+  processAndLog
 };
-
-// ── Example usage (commented out) ────────────────────────────────────────
-/*
-async function main() {
-  const input = './input.mp4';
-  const output = './output.mp4';
-  const rectangles = [
-    { x: 100, y: 50, w: 300, h: 80, start: 0, end: 10 },
-    { x: 1500, y: 900, w: 400, h: 100, angle: -15, start: 5, end: 20 }
-  ];
-  
-  const result = await processAndLog(input, output, rectangles, 'blur');
-  console.log('✅ Done!', result);
-}
-
-main().catch(console.error);
-*/
